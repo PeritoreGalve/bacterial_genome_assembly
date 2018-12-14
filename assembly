@@ -1,0 +1,61 @@
+#Shell scripting language is from the PBS server run by BioHPC UniAndes
+
+#STEP 2: Determine sequence quality using FastQC
+
+#!/bin/bash
+#PBS -N FastQC
+#PBS -m abe
+#PBS -l mem=4gb
+#PBS -l nodes=1:ppn=4
+#PBS -l walltime=2:00:00
+#PBS -t 1-2
+module load fastqc/0.11.7
+cd $PBS_O_WORKDIR
+INFILE1=$(sed -n -e "${PBS_ARRAYID} p" list.txt)
+fastqc $INFILE1
+
+#"${PBS_ARRAYID} p" = paired end files 1 and 2 specified in the list.txt document
+
+
+#STEP 2: Use Trimmomatic to remove low quality scored reads and to remove adapter sequences.
+
+#!/bin/bash
+#PBS -N Trimmomatic
+#PBS -m abe
+#PBS -l mem=4gb
+#PBS -l nodes=1:ppn=4
+#PBS -l walltime=2:00:00
+#PBS -t 1
+module load trimmomatic/0.36
+cd $PBS_O_WORKDIR
+java -jar /hpcfs/apps/trimmomatic/0.36/trimmomatic-0.36.jar PE $In_Read1.fq $In_Read2.fq $Out_Read1_Paired.fq $Out_Read1_Unpaired.fq \
+$Out_Read2_Paired.fq $Out_Read2_Unpaired.fq HEADCROP:13 SLIDINGWINDOW:4:15 MINLEN:150
+
+#STEP 3: Run FastQC again on trimmed reads using script above 
+
+#STEP 4: Assemble the genome using SPAdes:
+
+#!/bin/bash
+#PBS -N SPAdes
+#PBS -m abe
+#PBS -l mem=4gb
+#PBS -l nodes=1:ppn=4
+#PBS -l walltime=2:00:00
+#PBS -t 1
+cd $PBS_O_WORKDIR
+module load spades/3.9.0
+spades.py --careful -1 ./$Out_Read1_Paired.fastq -2 ./$Out_Read2_Paired.fastq -o spades_out
+
+#STEP 5: Use QUAST to gather assembly statistics from contigs or scaffolds assembled by SPAdes
+
+#!/bin/bash
+#PBS -N quast
+#PBS -m abe
+#PBS -l mem=4gb
+#PBS -l nodes=1:ppn=4
+#PBS -l walltime=2:00:00
+#PBS -t 1
+cd $PBS_O_WORKDIR
+module load quast/4.4
+quast.py contigs.fasta 
+
